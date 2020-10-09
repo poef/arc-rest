@@ -93,12 +93,12 @@ class http {
 
 		preg_match('@(?<dirname>.+/)?(?<filename>[^/]*)@',$target,$matches);
 
-		$filename = isset($matches['filename']) ? $matches['filename'] : '';
+		$filename = $matches['filename'] ?? '';
 		$dirname  = ( isset($matches['dirname']) ? \arc\path::collapse($matches['dirname']) : '/');
-		$docroot  = $_SERVER['DOCUMENT_ROOT'];
-		$subdir   = \arc\path::collapse( substr( dirname(dirname($_SERVER['SCRIPT_FILENAME'])), strlen($docroot) ) );
+		$docroot  = $_SERVER['DOCUMENT_ROOT'] ?? __DIR__;
+		$subdir   = \arc\path::collapse( substr( dirname(dirname($_SERVER['SCRIPT_FILENAME'] ?? '')), strlen($docroot) ) );
 		$dirname  = \arc\path::collapse( substr($dirname, strlen($subdir) ) );
-		$pathInfo = $_SERVER['PATH_INFO'];
+		$pathInfo = $_SERVER['PATH_INFO'] ?? '';
 		$request = [
 			'protocol'  => $_SERVER['SERVER_PROTOCOL']?:'HTTP/1.1',
 			'method'    => self::getMethod(),
@@ -117,16 +117,8 @@ class http {
 	{
 		http_response_code($status);
 		header('Access-Control-Allow-Origin: *');
-		switch(self::$format) {
-			case 'html':
-				var_dump( $data );
-			break;
-			case 'json':
-			default:
-				header('Content-Type: application/json');
-				echo json_encode($data, JSON_UNESCAPED_UNICODE);
-			break;
-		}
+		header('Content-Type: application/json');
+		echo json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT);
 	}
 
 }
