@@ -6,6 +6,9 @@
     require __DIR__ . '/../vendor/autoload.php';
     require_once('../src/http.php');
     require_once('../src/htpasswd.php');
+    require_once('../src/filesystem.php');
+
+    filesystem::basedir(__DIR__);
 
     $dbConfig = getenv("arc-rest-store");
     if (!$dbConfig) {
@@ -24,7 +27,7 @@
     function initGrants() {
         $grantsFile = getenv('arc-rest-grants');
         if (!$grantsFile) {
-            $grantsFile = __DIR__.'/../grants.json';
+            $grantsFile = dirname(__DIR__).'/grants.json';
         }
         if (!is_readable($grantsFile)) {
             http::response(["error" => "Grants file not found."],501);
@@ -40,7 +43,7 @@
     initGrants();
 
     $req = http::request();
-    $path = \arc\path::collapse($req['pathinfo']);
+    $path = \arc\path::collapse($req['pathinfo'] ?: '/');
     \arc\grants::cd($path);
 
     // find user and check password
@@ -102,9 +105,9 @@
                 http::response(["error" => "Access denied"], 401);
                 die();                
             }
-            $data = file_get_contents('php://input');
-            $json = json_decode($data);
-            if ($json === NULL) {
+            $json = file_get_contents('php://input');
+            $data = json_decode($json);
+            if ($data === NULL) {
                 // json not decoded properly
                 http::response(["error" => "Data empty or not valid JSON"], 400);
             }
@@ -122,8 +125,8 @@
                 http::response(["error" => "Directory $path not empty"], 412);
                 die();
             }
-            $store->delete($path);
-            http::response("ok");
+            $result = $store->delete($path);
+            http::response($result);
         break;
         default:
             http::response($req['method'].' not allowed', 405);
