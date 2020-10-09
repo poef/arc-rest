@@ -30,12 +30,15 @@
 
         public static function load($filename) {
             $lines = preg_split('/\r\n|\r|\n/',filesystem::get('/', $filename));
-			foreach ($lines as $line) {
-				list($user,$password) = array_map('trim', explode(':',$line));
-                if ($user && $password) {
-    				self::$users[$user] = $password;
+            foreach ($lines as $line) {
+                if (strpos($line, ':')===false) {
+                    continue;
                 }
-			}
+                list($user,$password) = array_map('trim', explode(':',$line));
+                if ($user && $password) {
+                    self::$users[$user] = $password;
+                }
+            }
         }
 
         public static function check($user, $password) {
@@ -82,7 +85,7 @@
             return password_verify($password, $crypted);
         }
 
-        private function cryptApr1Md5($plainpasswd, $salt) {
+        private static function cryptApr1Md5($plainpasswd, $salt) {
             $len  = strlen($plainpasswd);
             $text = $plainpasswd.'$apr1$'.$salt;
             $bin  = pack("H32", md5($plainpasswd.$salt.$plainpasswd));
@@ -90,7 +93,7 @@
                 $text .= substr($bin, 0, min(16, $i));
             }
             for ($i = $len; $i > 0; $i >>= 1) {
-                $text .= ($i & 1) ? chr(0) : $plainpasswd{0};
+                $text .= ($i & 1) ? chr(0) : $plainpasswd[0];
             }
             $bin = pack("H32", md5($text));
             for ($i = 0; $i < 1000; $i++) {
