@@ -1,0 +1,6 @@
+SetEnv arc-rest-store "pgsql:host=localhost;port=5432;dbname=arcstore;user=arcstore;password=arcstore"
+
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule (.*) "index.php/$1" [L]
