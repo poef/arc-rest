@@ -7,6 +7,7 @@
     require_once('../src/http.php');
     require_once('../src/htpasswd.php');
     require_once('../src/filesystem.php');
+    require_once('../src/secureStore.php');
 
     filesystem::basedir(__DIR__);
 
@@ -39,12 +40,13 @@
             \arc\tree::expand($grantsConfig), 'public', 'public' 
         );
         $context->arcGrants = $grantsTree;
+        return $grantsTree;
     }
-    initGrants();
+    $grantsTree = initGrants();
 
     $req = http::request();
     $path = \arc\path::collapse($req['pathinfo'] ?: '/');
-    \arc\grants::cd($path);
+    $grantsTree = $grantsTree->cd($path);
 
     // find user and check password
     if ($req['user']) {
@@ -53,86 +55,65 @@
             http::response(["error" => "Access denied for user {$req['user']}"], 401);
             die();
         }
-        \arc\grants::switchUser($req['user']);
+        $grantsTree = $grantsTree->switchUser($req['user']);
     }
 
-    switch($req['method']) {
-        case 'GET':
-            if (!\arc\grants::check('read')) {
-                http::response(["error" => "Access denied"], 401);
-                die();                
-            }
-            $data = $store->get($path);
-            $nodes = array_filter(
-                $store->ls($path),
-                function($childNode) {
-                    return \arc\grants::getGrantsTree()->cd($childNode->name)->check('read');
+    $store = new secureStore($grantsTree, $store);
+
+    try {
+        switch($req['method']) {
+            case 'GET':
+                $data = $store->get($path);
+                $nodes = $store->ls($path);
+                http::response(["node" => $data, "childNodes" => $nodes]);
+            break;
+            case 'POST':
+                // get json payload
+                $json = file_get_contents('php://input');
+                $data = json_decode($json);
+                if ($data === NULL) {
+                    // json not decoded properly
+                    http::response(["error" => "Data empty or not valid JSON"], 400);
                 }
-            );
-            http::response(["node" => $data, "childNodes" => $nodes]);
-        break;
-        case 'POST':
-            if (!\arc\grants::check('create')) {
-                http::response(["error" => "Access denied"], 401);
-                die();
-            }
-            // get json payload
-            $json = file_get_contents('php://input');
-            $data = json_decode($json);
-            if ($data === NULL) {
-                // json not decoded properly
-                http::response(["error" => "Data empty or not valid JSON"], 400);
-            }
-            // create any missing parents
-            foreach( \arc\path::parents($path) as $parent) {
-                if (!$store->exists($parent)) {
-                    $store->save(null, $parent);
+                // create any missing parents
+                foreach( \arc\path::parents($path) as $parent) {
+                    if (!$store->exists($parent)) {
+                        $store->save(null, $parent);
+                    }
                 }
-            }
-            // create a unique id
-            $id = uuidv4();
-            // store it in the given path
-            $store->save($data, $path.$id.'/');
-            http::response($path.$id.'/');
-        break;
-        case 'PUT':
-            if ($store->exists($path)) {
-                if (!\arc\grants::check('edit')) {
-                    http::response(["error" => "Access denied"], 401);
+                // create a unique id
+                $id = uuidv4();
+                // store it in the given path
+                $store->save($data, $path.$id.'/');
+                http::response($path.$id.'/');
+            break;
+            case 'PUT':
+                $json = file_get_contents('php://input');
+                $data = json_decode($json);
+                if ($data === NULL) {
+                    // json not decoded properly
+                    http::response(["error" => "Data empty or not valid JSON"], 400);
+                }
+                
+                // store it in the given path
+                $store->save($data, $path);
+                http::response($path);
+            break;
+            case 'DELETE':
+                if ($store->ls($path)) {
+                    http::response(["error" => "Directory $path not empty"], 412);
                     die();
                 }
-            } else if(!\arc\grants::check('create')) {
-                http::response(["error" => "Access denied"], 401);
-                die();                
-            }
-            $json = file_get_contents('php://input');
-            $data = json_decode($json);
-            if ($data === NULL) {
-                // json not decoded properly
-                http::response(["error" => "Data empty or not valid JSON"], 400);
-            }
-            
-            // store it in the given path
-            $store->save($data, $path);
-            http::response($path);
-        break;
-        case 'DELETE':
-            if (!\arc\grants::check('delete')) {
-                http::response(["error" => "Access denied"], 401);
-                die();
-            }
-            if ($store->ls($path)) {
-                http::response(["error" => "Directory $path not empty"], 412);
-                die();
-            }
-            $result = $store->delete($path);
-            http::response($result);
-        break;
-        default:
-            http::response($req['method'].' not allowed', 405);
-        break;
+                $result = $store->delete($path);
+                http::response($result);
+            break;
+            default:
+                http::response($req['method'].' not allowed', 405);
+            break;
+        }
+    } catch ( \arc\AuthenticationError $e) {
+        http::response(["error" => "Access denied"], 401);
     }
-
     function uuidv4(){
         $data = random_bytes(16);
         $data[6] = chr(ord($data[6]) & 0x0f | 0x40); 
