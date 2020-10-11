@@ -12,7 +12,7 @@ like this:
 In PHP you need the postgres and dom extensions. In debian/ubuntu install these like
 this:
 
-    > sudo apt-get install php-psql
+    > sudo apt-get install php-pgsql
     > sudo apt-get install php-dom
 
 ### Initialize PostgreSQL
