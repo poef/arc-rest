@@ -13,20 +13,19 @@ class secureStore {
 		$this->grantsTree = $grantsTree;
 	}
 
+	public function foo() {
+		echo 'foo';
+	}
+
 	public function cd($path) {
-		return new self($this->grantsTree->cd($path), $this->target->cd($path));
+		return new secureStore($this->grantsTree->cd($path), $this->target->cd($path));
 	}
 
 	public function find($query, $path='') {
 		if (!$this->grantsTree->cd($path)->check('read')) {
 			throw new \arc\AuthenticationError('Access denied');
 		}
-		return array_filter(
-            $this->target->find($query, $path),
-            function($childNode) {
-                return $this->grantsTree->cd($childNode->path)->check('read');
-            }
-        );
+		return $this->filterGrant( $this->target->find($query, $path), 'read');
 	}
 
 	public function get($path='') {
@@ -37,23 +36,16 @@ class secureStore {
 	}
 
 	public function ls($path='') {
-		return array_filter(
-            $this->target->ls($path),
-            function($childNode) {
-                return $this->grantsTree->cd($childNode->name)->check('read');
-            }
-        );	
+		return $this->filterGrant( $this->target->ls($path), 'read' );	
 	}
 
 	public function parents($path='', $top='/') {
 		if (!$this->grantsTree->cd($path)->check('read')) {
 			throw new \arc\AuthenticationError('Access denied');
 		}
-		return array_filter(
+		return $this->filterGrant(
             $this->target->parents($path, $top),
-            function($childNode) {
-                return $this->grantsTree->cd($childNode->path)->check('read');
-            }
+            "read"
         );			
 	}
 
@@ -84,6 +76,22 @@ class secureStore {
 			throw new \arc\AuthenticationError('Access denied');
 		}
 		return $this->target->delete($path);
+	}
+
+	public function checkGrant($node, $grant) {
+	    return $this->grantsTree->cd($node->path)->check($grant);
+	}
+
+	public function checkRead($node) {
+		return $this->checkGrant($node, 'read');
+	}
+
+	public function filterGrant($nodes, $grant) {
+		foreach($nodes as $node) {
+			if ($this->checkGrant($node, $grant)) {
+				yield $node;
+			}
+		}
 	}
 
 }

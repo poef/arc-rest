@@ -17,13 +17,24 @@
         die();
     }
 
-//    try {
-        $store = \arc\store::connect($dbConfig);
-        $store->initialize();
-//    } catch(\Exception $e) {
-//        http::response(["error" => $e->getMessage()], 501);
-//        die();
-//    }
+    function connect($dsn)
+    {
+        $db = new \PDO($dsn);
+        $db->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $resultHandler = \arc\store\PSQLStore::generatorResultHandler($db);
+        $store = new \arc\store\PSQLStore(
+            $db, 
+            new \arc\store\PSQLQueryParser(), 
+            $resultHandler
+        );
+        \arc\context::push([
+            'arcStore' => $store
+        ]);
+        return $store;
+    }
+
+    $store = connect($dbConfig);
+    $store->initialize();
 
     function initGrants() {
         $grantsFile = getenv('arc-rest-grants');
@@ -59,13 +70,17 @@
     }
 
     $store = new secureStore($grantsTree, $store);
-
     try {
         switch($req['method']) {
             case 'GET':
-                $data = $store->get($path);
-                $nodes = $store->ls($path);
-                http::response(["node" => $data, "childNodes" => $nodes]);
+                if (isset($_GET["query"]) && $query=$_GET['query']) {
+                    $nodes = $store->cd($path)->find($query);
+                    responseWithLimit($nodes, null, $_GET['limit'] ?? 1000);
+                } else {
+                    $data = $store->get($path);
+                    $nodes = $store->ls($path);
+                    responseWithLimit($nodes, $data, $_GET['limit'] ?? 1000);
+                }
             break;
             case 'POST':
                 // get json payload
@@ -119,4 +134,36 @@
         $data[6] = chr(ord($data[6]) & 0x0f | 0x40); 
         $data[8] = chr(ord($data[8]) & 0x3f | 0x80); 
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
+
+    function responseWithLimit($nodes, $node=false, $limit=1000) {
+        http_response_code(200);
+        header('Access-Control-Allow-Origin: *');
+        header('Content-Type: application/json');
+        echo "{";
+        if ($node) {
+            echo "\"node\":" . json_encode($node, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT) . ",\n";
+        }
+        echo "\"nodes\":{\n";
+        $first = true;
+        $next  = false;
+        $count = 0;
+        foreach($nodes as $node) {
+            if ($count>=$limit) {
+                $next = $node;
+                break;
+            }
+            if (!$first) {
+                echo ",\n";
+            }
+            echo '"'.$node->path.'"' . ':' . json_encode($node->data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT);
+            $first = false;
+            $count++;
+        }
+        echo "\n}";
+        if ($next) {
+            echo ",\n\"next\":\"{$next->path}\"";
+        }
+        echo "\n}";
+
     }
