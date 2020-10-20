@@ -23,10 +23,21 @@
     {
         $db = new \PDO($dsn);
         $db->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-        $resultHandler = \arc\store\PSQLStore::generatorResultHandler($db);
-        $store = new \arc\store\PSQLStore(
+        if (strpos($dsn, 'mysql:')===0) {
+            $storeType = '\arc\store\MySQL';
+        }
+        if (strpos($dsn, 'pgsql:')===0) {
+            $storeType = '\arc\store\PSQL';
+        }
+        if (!$storeType) {
+            throw new \arc\ConfigError('Unknown database type');
+        }
+        $className = $storeType.'Store';            
+        $resultHandler = $className::generatorResultHandler($db);
+        $queryParserClassName = $storeType.'QueryParser';
+        $store = new $className(
             $db, 
-            new \arc\store\PSQLQueryParser(), 
+            new $queryParserClassName(array('\arc\store','tokenizer')), 
             $resultHandler
         );
         \arc\context::push([
@@ -76,11 +87,11 @@
             case 'GET':
                 if (isset($_GET["query"]) && $query=$_GET['query']) {
                     $nodes = $store->cd($path)->find($query);
-                    responseWithLimit($nodes, $req, null, $_GET['limit'] ?? 1000);
+                    responseWithLimit($nodes, $req, null, $_GET['limit'] ?? 0);
                 } else {
                     $data = $store->get($path);
                     $nodes = $store->ls($path);
-                    responseWithLimit($nodes, $req, $data, $_GET['limit'] ?? 1000);
+                    responseWithLimit($nodes, $req, $data, $_GET['limit'] ?? 0);
                 }
             break;
             case 'POST':
@@ -112,6 +123,12 @@
                 }
                 
                 // store it in the given path
+                $parents = \arc\path::parents(\arc\path::parent($path));
+                foreach($parents as $parent) {
+                    if (!$store->exists($parent)) {
+                        $store->save(null, $parent);
+                    }
+                }
                 $store->save($data, $path);
                 http::response($path,$req);
             break;
@@ -137,7 +154,7 @@
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
-    function responseWithLimit($nodes, $request, $node=false, $limit=1000) {
+    function responseWithLimit($nodes, $request, $node=false, $limit=0) {
         http_response_code(200);
         header('Content-Type: application/json');
         $origin = $request['origin'];
@@ -159,7 +176,7 @@
         $next  = false;
         $count = 0;
         foreach($nodes as $node) {
-            if ($count>=$limit) {
+            if ($limit && $count>=$limit) {
                 $next = $node;
                 break;
             }
