@@ -6,10 +6,7 @@
     require __DIR__ . '/../vendor/autoload.php';
     require_once('../src/http.php');
     require_once('../src/htpasswd.php');
-    require_once('../src/filesystem.php');
     require_once('../src/secureStore.php');
-
-    filesystem::basedir(__DIR__);
 
     $req = http::request();
 
@@ -21,29 +18,15 @@
 
     function connect($dsn)
     {
-        $db = new \PDO($dsn);
-        $db->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         if (strpos($dsn, 'mysql:')===0) {
             $storeType = '\arc\store\MySQL';
         }
         if (strpos($dsn, 'pgsql:')===0) {
             $storeType = '\arc\store\PSQL';
         }
-        if (!$storeType) {
-            throw new \arc\ConfigError('Unknown database type');
-        }
         $className = $storeType.'Store';            
-        $resultHandler = $className::generatorResultHandler($db);
-        $queryParserClassName = $storeType.'QueryParser';
-        $store = new $className(
-            $db, 
-            new $queryParserClassName(array('\arc\store','tokenizer')), 
-            $resultHandler
-        );
-        \arc\context::push([
-            'arcStore' => $store
-        ]);
-        return $store;
+        $resultHandler = array($className,'generatorResultHandler');
+        return \arc\store::connect($dsn, $resultHandler);
     }
 
     $store = connect($dbConfig);
@@ -184,7 +167,7 @@
 
         echo "{";
         if ($node) {
-            echo "\"node\":" . json_encode($node, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT) . ",\n";
+            echo "\"node\":" . json_encode($node, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) . ",\n";
         }
         echo "\"nodes\":{\n";
         $first = true;
@@ -198,7 +181,7 @@
             if (!$first) {
                 echo ",\n";
             }
-            echo '"'.$node->path.'"' . ':' . json_encode($node->data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT);
+            echo '"'.$node->path.'"' . ':' . json_encode($node->data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             $first = false;
             $count++;
         }
