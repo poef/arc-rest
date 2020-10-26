@@ -29,7 +29,7 @@
         static $users = [];
 
         public static function load($filename) {
-            $lines = preg_split('/\r\n|\r|\n/',filesystem::get('/', $filename));
+            $lines = preg_split('/\r\n|\r|\n/',file_get_contents($filename));
             foreach ($lines as $line) {
                 if (strpos($line, ':')===false) {
                     continue;
