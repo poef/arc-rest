@@ -1,20 +1,11 @@
 <?php
 
-/*
-TODO
-- use the generator result handler to filter results
-*/
-
 class secureStore {
 	use \arc\traits\Proxy;
 
 	public function __construct($grantsTree, $store) {
 		$this->target = $store;
 		$this->grantsTree = $grantsTree;
-	}
-
-	public function foo() {
-		echo 'foo';
 	}
 
 	public function cd($path) {
@@ -87,6 +78,9 @@ class secureStore {
 	}
 
 	public function filterGrant($nodes, $grant) {
+		if (!$nodes) {
+			yield $nodes;
+		}
 		foreach($nodes as $node) {
 			if ($this->checkGrant($node, $grant)) {
 				yield $node;
