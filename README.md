@@ -166,29 +166,57 @@ You should get a result like this:
             "ctime": 1602232295,
             "mtime": 1602232295
         },
-        "childNodes": {
+        "nodes": {
             "/0de385d9-af7f-460c-8625-8c2a86599c3a/": {
-                "path": "/0de385d9-af7f-460c-8625-8c2a86599c3a/",
-                "id": "9c94ac32-2f25-4204-bddc-d604e81a67af",
-                "parent": "/",
-                "name": "0de385d9-af7f-460c-8625-8c2a86599c3a",
-                "data": {
-                    "name": "foo"
-                },
-                "ctime": 1602236360,
-                "mtime": 1602236360
+                "name": "foo"
             },
             "/bar/": {
-                "path": "/bar/",
-                "id": "e7140de1-0457-4acf-9003-00547d2981d3",
-                "parent": "/",
-                "name": "bar",
-                "data": {
-                    "name": "bar"
-                },
-                "ctime": 1602236947,
-                "mtime": 1602236947
+                "name": "bar"
             }
         }
     }
 
+## Updating Data
+
+    > curl --user username:password --request PATCH --data '{"name":null,"foo":"bar"}' http://localhost/arc-rest/bar/
+
+Will change the object with path /bar/ to this:
+
+    {
+        "node": {
+            "path": "/bar/",
+            "id": "...",
+            "parent": "/",
+            "name": "bar",
+            "data": {
+                "foo": "bar"
+            },
+            "ctime": 1602232295,
+            "mtime": 1602232295
+        },
+        "nodes": []
+    }
+
+The PATCH method uses the [JsonMergePatch](https://tools.ietf.org/html/rfc7386) standard to update the data. So explicitly setting a property to `null` removes the property. Arrays are always copied as is. If a property is an object, the object is merged recursively.
+
+## Deleting Data
+
+    > curl --user username:password --request DELETE http://localhost/arc-rest/bar/
+
+Will remove the object with path /bar/.
+
+## Searching for Data
+
+    > curl --user username:password "http://localhost/arc-rest/bar/?query=name+~=+'ba%'"
+
+Will return
+
+    {
+        "nodes":{
+            "/bar/":{
+                "foo": "bar"
+            }
+        }
+    }
+
+The query syntax is described in [the documentation of \arc\store](https://github.com/Ariadne-CMS/arc-store#arcstorefind).
