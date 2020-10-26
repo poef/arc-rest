@@ -112,7 +112,7 @@
                 $id = uuidv4();
                 // store it in the given path
                 $store->save($data, $path.$id.'/');
-                http::response($path.$id.'/',$req);
+                http::response($path.$id.'/', $req);
             break;
             case 'PUT':
                 $json = file_get_contents('php://input');
@@ -130,23 +130,38 @@
                     }
                 }
                 $store->save($data, $path);
-                http::response($path,$req);
+                http::response($path, $req);
+            break;
+            case 'PATCH':
+                $json = file_get_contents('php://input');
+                $patch = json_decode($json);
+                if ($patch === NULL || !is_object($patch)) {
+                    // json not decoded properly
+                    http::response(["error" => "Patch data empty or not a valid JSON object"], 400);
+                }
+                $source = $store->get($path);
+                $patched = jsonMergePatch($source->data, $patch);
+                // store it in the given path
+                $store->save($patched, $path);
+                http::response($path, $req);
+            
             break;
             case 'DELETE':
                 if ($store->ls($path)) {
-                    http::response(["error" => "Directory $path not empty"], $req,412);
+                    http::response(["error" => "Directory $path not empty"], $req, 412);
                     die();
                 }
                 $result = $store->delete($path);
                 http::response($result,$req);
             break;
             default:
-                http::response($req['method'].' not allowed', $req,405);
+                http::response($req['method'].' not allowed', $req, 405);
             break;
         }
     } catch ( \arc\AuthenticationError $e) {
-        http::response(["error" => "Access denied"], $req,401, ["WWW-Authenticate: Basic"]);
+        http::response(["error" => "Access denied"], $req, 401, ["WWW-Authenticate: Basic"]);
     }
+
     function uuidv4(){
         $data = random_bytes(16);
         $data[6] = chr(ord($data[6]) & 0x0f | 0x40); 
@@ -191,6 +206,23 @@
         if ($next) {
             echo ",\n\"next\":\"{$next->path}\"";
         }
-        echo "\n}";
-
+        echo "\n}\n";
+    }
+    
+    function jsonMergePatch($source, $patch) {
+        foreach ($patch as $name => $value) {
+            if ($value === null ) {
+                unset($source->$name);
+            } else {
+                if (!isset($source->$name)) {
+                    $source->$name = null;
+                }
+                if (is_object($value)) {
+                    $source->$name = jsonMergePatch($source->$name, $value);
+                } else {
+                    $source->$name = $value;
+                }
+            }
+        }
+        return $source;
     }
