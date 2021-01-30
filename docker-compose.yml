@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+  php:
+    image: doctorlove/docker-php-apache-v8js:7.3
+    environment:
+      arc-rest-store: "pgsql:host=postgres;port=5432;dbname=arcstore;user=postgres;password=postgres"
+    volumes:
+      - ./www:/app
+      - ./vendor:/vendor
+      - ./src:/src
+    ports:
+      - 8080:80
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_PASSWORD: postgres
+    expose:
+      - 5432
+
+volumes:
+  www:      
+            
