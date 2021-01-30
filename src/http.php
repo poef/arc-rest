@@ -96,7 +96,7 @@ class http {
 		$filename = $matches['filename'] ?? '';
 		$dirname  = ( isset($matches['dirname']) ? \arc\path::collapse($matches['dirname']) : '/');
 		$docroot  = $_SERVER['DOCUMENT_ROOT'] ?? __DIR__;
-		$subdir   = \arc\path::collapse( substr( dirname(dirname($_SERVER['SCRIPT_FILENAME'] ?? '')), strlen($docroot) ) );
+		$subdir   = \arc\path::collapse( substr( dirname($_SERVER['SCRIPT_FILENAME']), strlen($docroot) ) );
 		$dirname  = \arc\path::collapse( substr($dirname, strlen($subdir) ) );
 		$pathInfo = $_SERVER['PATH_INFO'] ?? '';
 		$request = [
@@ -108,17 +108,29 @@ class http {
 			'user'      => self::getUser(),
 			'password'  => self::getPassword(),
 			'docroot'   => $docroot,
-			'pathinfo'  => $pathInfo
+			'pathinfo'  => $pathInfo,
+			'origin'    => $_SERVER['origin'] ?? ''
 		];
 		return $request;
 	}
 
-	public static function response($data, $status=200)
+	public static function response($data, $request, $status=200, $headers=[])
 	{
 		http_response_code($status);
-		header('Access-Control-Allow-Origin: *');
 		header('Content-Type: application/json');
-		echo json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT);
+		$origin = $request['origin'];
+		if (!$origin) {
+			header('Access-Control-Allow-Origin: *');
+		} else {
+			header('Access-Control-Allow-Origin: '.$origin);
+		}
+		header('Access-Control-Allow-Methods: POST, GET, PUT, DELETE');
+		header('Access-Control-Allow-Headers: Authorization');
+		header('Access-Control-Allow-Credentials: true');
+		foreach($headers as $header) {
+			header($header);
+		}
+		echo json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT)."\n";
 	}
 
 }
