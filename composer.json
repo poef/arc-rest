@@ -18,7 +18,7 @@
 		"arc/cache": "~3.0",
 		"arc/config": "~3.0",
 		"arc/web": "~3.0",
-		"arc/store": "~3.0"
+		"arc/store": "dev-master"
 	},
 	"autoload": {
 		"psr-4": {
