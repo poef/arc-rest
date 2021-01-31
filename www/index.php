@@ -8,6 +8,7 @@
     require_once('../src/htpasswd.php');
     require_once('../src/secureStore.php');
 
+    global $req;
     $req = http::request();
 
     $dbConfig = getenv("arc-rest-store");
@@ -16,26 +17,15 @@
         die();
     }
 
-    function connect($dsn)
-    {
-        if (strpos($dsn, 'mysql:')===0) {
-            $storeType = '\arc\store\MySQL';
-        }
-        if (strpos($dsn, 'pgsql:')===0) {
-            $storeType = '\arc\store\PSQL';
-        }
-        $className = $storeType.'Store';            
-        $resultHandler = array($className,'generatorResultHandler');
-        return \arc\store::connect($dsn, $resultHandler);
-    }
-
-    $store = connect($dbConfig);
+    $resultHandler = array("\arc\store\ResultHandlers","getDBGeneratorHandler");
+    $store = \arc\store::connect($dbConfig, $resultHandler);
     $store->initialize();
 
     function initGrants() {
+        global $req;
         $grantsFile = getenv('arc-rest-grants');
         if (!$grantsFile) {
-            $grantsFile = dirname(__DIR__).'/grants.json';
+            $grantsFile = dirname(__DIR__).'grants.json';
         }
         if (!is_readable($grantsFile)) {
             http::response(["error" => "Grants file not found."],$req,501);
@@ -169,25 +159,27 @@
         if ($node) {
             echo "\"node\":" . json_encode($node, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) . ",\n";
         }
-        echo "\"nodes\":{\n";
-        $first = true;
-        $next  = false;
-        $count = 0;
-        foreach($nodes as $node) {
-            if ($limit && $count>=$limit) {
-                $next = $node;
-                break;
+        if ($nodes) {
+            echo "\"nodes\":{\n";
+            $first = true;
+            $next  = false;
+            $count = 0;
+            foreach($nodes as $node) {
+                if ($limit && $count>=$limit) {
+                    $next = $node;
+                    break;
+                }
+                if (!$first) {
+                    echo ",\n";
+                }
+                echo '"'.$node->path.'"' . ':' . json_encode($node->data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+                $first = false;
+                $count++;
             }
-            if (!$first) {
-                echo ",\n";
+            echo "\n}";
+            if ($next) {
+                echo ",\n\"next\":\"{$next->path}\"";
             }
-            echo '"'.$node->path.'"' . ':' . json_encode($node->data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-            $first = false;
-            $count++;
-        }
-        echo "\n}";
-        if ($next) {
-            echo ",\n\"next\":\"{$next->path}\"";
         }
         echo "\n}\n";
     }
