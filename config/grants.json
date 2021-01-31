@@ -1,0 +1,8 @@
+{
+    "/": {
+        "users": {
+            "public":" read ",
+            "poef": " read edit create delete "
+        }
+    }
+}

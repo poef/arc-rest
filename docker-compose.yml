@@ -5,10 +5,12 @@ services:
     image: doctorlove/docker-php-apache-v8js:7.3
     environment:
       arc-rest-store: "pgsql:host=postgres;port=5432;dbname=arcstore;user=postgres;password=postgres"
+      arc-rest-grants: "/config/grants.json"
     volumes:
       - ./www:/app
       - ./vendor:/vendor
       - ./src:/src
+      - ./config:/config
     ports:
       - 8080:80
     depends_on:
@@ -20,6 +22,8 @@ services:
       POSTGRES_PASSWORD: postgres
     expose:
       - 5432
+    volumes:
+      - ./postgres:/docker-entrypoint-initdb.d
 
 volumes:
   www:      
