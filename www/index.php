@@ -4,16 +4,14 @@
     error_reporting(E_ALL);
 
     require __DIR__ . '/../vendor/autoload.php';
-    require_once('../src/http.php');
-    require_once('../src/htpasswd.php');
     require_once('../src/secureStore.php');
 
-    global $req;
-    $req = http::request();
+    global $request;
+    $request = \arc\http::serverRequest();
 
     $dbConfig = getenv("arc-rest-store");
     if (!$dbConfig) {
-        http::response(["error" => "missing store configuration"],$req,501);
+        response(["error" => "missing store configuration"],$request,501);
         die();
     }
 
@@ -22,13 +20,13 @@
     $store->initialize();
 
     function initGrants() {
-        global $req;
+        global $request;
         $grantsFile = getenv('arc-rest-grants');
         if (!$grantsFile) {
             $grantsFile = dirname(__DIR__).'grants.json';
         }
         if (!is_readable($grantsFile)) {
-            http::response(["error" => "Grants file not found."],$req,501);
+            response(["error" => "Grants file not found."],$request,501);
             die();
         }
         $grantsConfig = json_decode(file_get_contents($grantsFile),true);
@@ -41,39 +39,40 @@
     }
     $grantsTree = initGrants();
 
-    $path = \arc\path::collapse($req['pathinfo'] ?: '/');
+    $path = \arc\path::collapse($request->url->path ?: '/');
     $grantsTree = $grantsTree->cd($path);
 
     // find user and check password
-    if ($req['user']) {
-        htpasswd::load('.htpasswd');
-        if (!htpasswd::check($req['user'],$req['password'])) {
-            http::response(["error" => "Access denied for user {$req['user']}"], $req,401);
+    if ($request->user) {
+        $htpasswd = \arc\http::htpasswd(file_get_contents('.htpasswd'));
+        if (!$htpasswd->check($request->user, $request->password)) {
+            response(["error" => "Access denied for user {$request->user}"], $request,401);
             die();
         }
-        $grantsTree = $grantsTree->switchUser($req['user']);
+        $grantsTree = $grantsTree->switchUser($request->user);
     }
 
     $store = new secureStore($grantsTree, $store);
     try {
-        switch($req['method']) {
+        switch($request->method) {
             case 'GET':
-                if (isset($_GET["query"]) && $query=$_GET['query']) {
+                $query = $request->url->query['query'] ?? '';
+                if ($query) {
                     $nodes = $store->cd($path)->find($query);
-                    responseWithLimit($nodes, $req, null, $_GET['limit'] ?? 0);
+                    responseWithLimit($nodes, $request, null, $_GET['limit'] ?? 0);
                 } else {
                     $data = $store->get($path);
                     $nodes = $store->ls($path);
-                    responseWithLimit($nodes, $req, $data, $_GET['limit'] ?? 0);
+                    responseWithLimit($nodes, $request, $data, $_GET['limit'] ?? 0);
                 }
             break;
             case 'POST':
                 // get json payload
-                $json = file_get_contents('php://input');
+                $json = $request->body;
                 $data = json_decode($json);
                 if ($data === NULL) {
                     // json not decoded properly
-                    http::response(["error" => "Data empty or not valid JSON"], $req,400);
+                    response(["error" => "Data empty or not valid JSON"], $request,400);
                 }
                 // create any missing parents
                 foreach( \arc\path::parents($path) as $parent) {
@@ -85,14 +84,14 @@
                 $id = uuidv4();
                 // store it in the given path
                 $store->save($data, $path.$id.'/');
-                http::response($path.$id.'/', $req);
+                response($path.$id.'/', $request);
             break;
             case 'PUT':
-                $json = file_get_contents('php://input');
+                $json = $request->body;
                 $data = json_decode($json);
                 if ($data === NULL) {
                     // json not decoded properly
-                    http::response(["error" => "Data empty or not valid JSON"], $req,400);
+                    response(["error" => "Data empty or not valid JSON"], $request,400);
                 }
                 
                 // store it in the given path
@@ -103,36 +102,36 @@
                     }
                 }
                 $store->save($data, $path);
-                http::response($path, $req);
+                response($path, $request);
             break;
             case 'PATCH':
-                $json = file_get_contents('php://input');
+                $json = $request->body;
                 $patch = json_decode($json);
                 if ($patch === NULL || !is_object($patch)) {
                     // json not decoded properly
-                    http::response(["error" => "Patch data empty or not a valid JSON object"], 400);
+                    response(["error" => "Patch data empty or not a valid JSON object"], 400);
                 }
                 $source = $store->get($path);
                 $patched = jsonMergePatch($source->data, $patch);
                 // store it in the given path
                 $store->save($patched, $path);
-                http::response($path, $req);
+                response($path, $request);
             
             break;
             case 'DELETE':
                 if ($store->ls($path)) {
-                    http::response(["error" => "Directory $path not empty"], $req, 412);
+                    response(["error" => "Directory $path not empty"], $request, 412);
                     die();
                 }
                 $result = $store->delete($path);
-                http::response($result,$req);
+                response($result,$request);
             break;
             default:
-                http::response($req['method'].' not allowed', $req, 405);
+                response($request['method'].' not allowed', $request, 405);
             break;
         }
     } catch ( \arc\AuthenticationError $e) {
-        http::response(["error" => "Access denied"], $req, 401, ["WWW-Authenticate: Basic"]);
+        response(["error" => "Access denied"], $request, 401, ["WWW-Authenticate: Basic"]);
     }
 
     function uuidv4(){
@@ -145,7 +144,7 @@
     function responseWithLimit($nodes, $request, $node=false, $limit=0) {
         http_response_code(200);
         header('Content-Type: application/json');
-        $origin = $request['origin'];
+        $origin = $request->headers['origin'] ?? '';
         if (!$origin) {
             header('Access-Control-Allow-Origin: *');
         } else {
@@ -200,4 +199,23 @@
             }
         }
         return $source;
+    }
+
+    function response($data, $request, $status=200, $headers=[])
+    {
+        http_response_code($status);
+        header('Content-Type: application/json');
+        $origin = $request->headers['origin'] ?? '';
+        if (!$origin) {
+            header('Access-Control-Allow-Origin: *');
+        } else {
+            header('Access-Control-Allow-Origin: '.$origin);
+        }
+        header('Access-Control-Allow-Methods: POST, GET, PUT, DELETE');
+        header('Access-Control-Allow-Headers: Authorization');
+        header('Access-Control-Allow-Credentials: true');
+        foreach($headers as $header) {
+            header($header);
+        }
+        echo json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT)."\n";
     }
