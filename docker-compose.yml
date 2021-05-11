@@ -1,18 +1,37 @@
-version: '3'
+version: "3.3"
 
 services:
-  php:
-    image: doctorlove/docker-php-apache-v8js:7.3
+
+  traefik:
+    image: "traefik:v2.4"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      #- "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  arc-rest:
+    image: "webdevops/php-apache:7.4"
+    container_name: "arc-rest"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.arc-rest.rule=Host(`arc-rest.local`)"
+      - "traefik.http.routers.arc-rest.entrypoints=web"
     environment:
       arc-rest-store: "pgsql:host=postgres;port=5432;dbname=arcstore;user=postgres;password=postgres"
       arc-rest-grants: "/config/grants.json"
     volumes:
       - ./www:/app
       - ./vendor:/vendor
-      - ./src:/src
+      - ./src:/src 
       - ./config:/config
-    ports:
-      - 8080:80
     depends_on:
       - postgres
 
@@ -24,7 +43,7 @@ services:
       - 5432
     volumes:
       - ./postgres:/docker-entrypoint-initdb.d
-
+      
 volumes:
   www:      
             
