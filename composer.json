@@ -13,12 +13,13 @@
 	],
 	"require": {
 		"php": ">=7",
-		"arc/base": "~3.0.2",
+		"arc/base": "~3.0",
 		"arc/grants": "~3.0",
 		"arc/cache": "~3.0",
 		"arc/config": "~3.0",
-		"arc/web": "~3.0",
-		"arc/store": "dev-master"
+		"arc/web": "dev-master",
+		"arc/store": ">=3.2",
+		"league/flysystem": "^1.0"
 	},
 	"autoload": {
 		"psr-4": {
@@ -30,5 +31,7 @@
 	},
 	"scripts": {
 		"test": "phpunit --testdox"
-	}
+	},
+	"minimum-stability": "dev"
+	
 }
