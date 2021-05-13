@@ -21,7 +21,6 @@ class SecureStore {
 
 	public function get($path='') {
 		if (!$this->grantsTree->cd($path)->check('read')) {
-			var_dump($this->grantsTree);
 			throw new \arc\AuthenticationError('Access denied');
 		}
 		return $this->target->get($path);
