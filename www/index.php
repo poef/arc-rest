@@ -4,7 +4,7 @@
     error_reporting(E_ALL);
 
     require __DIR__ . '/../vendor/autoload.php';
-    require_once('../src/secureStore.php');
+    require_once('../src/SecureStore.php');
 
     global $request;
     $request = \arc\http::serverRequest();
@@ -52,7 +52,7 @@
         $grantsTree = $grantsTree->switchUser($request->user);
     }
 
-    $store = new secureStore($grantsTree, $store);
+    $store = new SecureStore($grantsTree, $store);
     try {
         switch($request->method) {
             case 'GET':
