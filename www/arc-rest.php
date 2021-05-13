@@ -16,24 +16,6 @@
         'write' => function($value) {
             echo json_encode($value, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         },
-        'writeKeyValue' => function($key, $value) {
-            echo json_encode($key, JSON_HEX_QUOT) . ':' . json_encode($value, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-        },
-        'writeStream' => function($nodes, $limit) {
-            $delim = '';
-            $count = 0;
-            foreach($nodes as $node) {
-                if ($limit && $count>=$limit) {
-                    $next = $node;
-                    break;
-                }
-                echo $delim;
-                $this->jsonKeyValue($node->path, $node->data).$delim;
-                $delim = ",\n";
-                $count++;
-            }
-            return $next;
-        },
         'error' => function($message, $status) {
             $this->response->status = $status;
             echo json_encode(["error" => $message]);
@@ -96,23 +78,7 @@
                 $nodes = $myStore->ls();
             }
             $limit = $params['limit'] ?? 0;
-            echo '{';
-            if ($data) {
-                $arcResponse->writeKeyValue('node', $data);
-            }
-            if ($nodes) {
-                if ($data) {
-                    echo ",\n";
-                }
-                echo "\"nodes\":{\n";
-                $next = $arcResponse->writeStream($nodes, $limit);
-                echo "\n}";
-            }
-            if (!empty($next)) {
-                echo ",\n";
-                $arcResponse->writeKeyValue('next', $next->path);
-            }
-            echo "\n}\n";
+            $arcResponse->write(['node' => $data, 'nodes' => $nodes]);
         },
         'post' => function($path) use ($arcStore, $arcRequest, $arcResponse) {
             $data = json_decode($arcRequest->body);
