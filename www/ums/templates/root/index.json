@@ -1,0 +1,11 @@
+<?php
+	$this->response->addHeader('Content-Type','application/json');
+	echo '{ "node": '.json_encode(\arc\prototype::ownEntries($this), JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+	echo ', "nodes": [';
+	$delim = '';
+	foreach($this->ls() as $path => $node) {
+		echo $delim . json_encode(\arc\prototype::ownEntries($node), JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+		$delim = ',';
+	}
+	echo '] }';
+
